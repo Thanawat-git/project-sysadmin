@@ -1,0 +1,472 @@
+---
+- hosts: all
+  become: yes
+  become_user: root
+  tasks:
+
+#--- Installation
+    - name: Install firewall
+      yum:
+        name: firewalld
+        state: latest
+    - name: Start firewalld
+      service: 
+        name: firewalld 
+        state: started
+
+    - name: Install Dns {bind, bind-utils}
+      package:
+        name: 
+          - bind
+          - bind-utils
+        state: latest
+      when: inventory_hostname in groups['dns'] #mgn,04
+
+    - name: Install rsyslog and time-server{chrony}
+      package: 
+        name: 
+          - rsyslog
+          - chrony
+        state: latest
+
+    - name: Install nginx
+      yum:
+        name: nginx
+        state: latest
+      when: ansible_ssh_host == '192.168.100.80' #server-01
+
+    - name: Install web{httpd}
+      yum:
+        name: httpd
+        state: latest
+      when: inventory_hostname in groups['web'] #server-02,03
+
+    - name: Install nfs
+      yum:
+        name: nfs-utils
+        state: latest
+      when: inventory_hostname in groups['nfs'] #02,03,04
+
+    - name: Install mariadb on server-02,03
+      shell:
+        cmd: sudo yum -y install @mariadb
+      when: inventory_hostname in groups['web']
+
+    - name: install mariadb-server on server-04
+      yum:
+        name:
+          - mariadb-server
+          - python3-PyMySQL
+        state: latest
+      when: ansible_ssh_host == '192.168.100.70' #server-04
+#--- Installation
+
+#--- Configulation
+  #--DNS
+    #-Master
+    - name: Config All dns file {copy template} Master
+      template:
+        src: "{{ item.source }}"
+        dest: "{{ item.destination }}"
+        owner: root
+        group: root
+        mode: "0755"
+      loop:
+        - { source: 'template/dns/named-master.conf.j2', destination: '/etc/named.conf' }
+        - { source: 'template/dns/192.168.100.forward.j2', destination: '/var/named/192.168.100.forward' }
+        - { source: 'template/dns/192.168.100.reverse.j2', destination: '/var/named/192.168.100.reverse' }
+        - { source: 'template/dns/resolv-master.conf.j2', destination: '/etc/resolv.conf' }
+      when: ansible_connection == 'local' #mgn
+    #-Master
+    #-Slave
+    - name: Config All dns file {copy template} Slave
+      template:
+        src: "{{ item.source }}"
+        dest: "{{ item.destination }}"
+        owner: root
+        group: root
+        mode: "0755"
+      loop:
+        - { source: 'template/dns/named-slave.conf.j2', destination: '/etc/named.conf' }
+        - { source: 'template/dns/resolv-slave.conf.j2', destination: '/etc/resolv.conf' }
+      when: ansible_ssh_host == '192.168.100.70' #server-04
+    #-Slave
+  #end DNS
+
+  #--Time
+    - name: start chrony
+      systemd:
+        name: chronyd
+        state: started
+        enabled: yes 
+    #-Time Server
+    - name: copy ntp-server
+      template:
+        src: 'template/ntp/ntp-server.conf.j2'
+        dest: '/etc/chrony.conf'
+        owner: root
+        group: root
+        mode: 0755
+      when: ansible_connection == 'local'
+    #-end Time Server
+    #-Time Client
+    - name: copy ntp-client
+      template:
+        src: 'template/ntp/ntp-client.conf.j2'
+        dest: '/etc/chrony.conf'
+        owner: root
+        group: root
+        mode: 0755
+      when: ansible_connection != 'local'
+    #-end Time Client
+  #--end Time
+
+  #--log
+    #-log server
+    - name: Edit rsyslog.conf {copy file} Server
+      template:
+        src: template/rsyslog/rsyslog-master.conf.j2
+        dest: /etc/rsyslog.conf
+        owner: root
+        group: root
+        mode: "0755"
+      when: ansible_connection == 'local'
+    #-end log server
+    #-log client
+    - name: Edit rsyslog.conf {copy file} client
+      template:
+        src: template/rsyslog/rsyslog-client.conf.j2
+        dest: /etc/rsyslog.conf
+        owner: root
+        group: root
+        mode: "0755"
+      when: ansible_connection != 'local'
+    #-end log client
+    - name: start and enable rsyslog
+      systemd:
+        name: rsyslog
+        state: started
+        enabled: yes
+  #--end log
+
+  #--Vhost+loadbalance
+    #-nginx
+    - name: start and enable nginx
+      service:
+        name: nginx
+        state: started
+        enabled: yes
+      when: ansible_ssh_host == '192.168.100.80'
+    - name: edit reverse
+      template:
+        src: template/nginx/reverse-load.conf.j2
+        dest: /etc/nginx/conf.d/reverse.conf
+        owner: root
+        group: root
+        mode: "0755"
+      when: ansible_ssh_host == '192.168.100.80'
+    #-end nginx
+    #-web
+    - name: edit httpd.conf server-02
+      template:
+        src: template/web/httpd-server02.conf.j2
+        dest: /etc/httpd/conf/httpd.conf
+        owner: root
+        group: root
+        mode: "0755"
+      when: ansible_ssh_host == '192.168.100.81'
+    - name: edit httpd.conf server-03
+      template:
+        src: template/web/httpd-server03.conf.j2
+        dest: /etc/httpd/conf/httpd.conf
+        owner: root
+        group: root
+        mode: "0755"
+      when: ansible_ssh_host == '192.168.100.82'
+    - name: start and enable httpd
+      service:
+        name: httpd
+        state: started
+        enabled: yes
+      when: inventory_hostname in groups['web']
+    - name: add repo remi 8
+      shell:
+        cmd: sudo dnf install dnf-utils http://rpms.remirepo.net/enterprise/remi-release-8.rpm -y
+      when: inventory_hostname in groups['web']
+    - name: reset php
+      shell:
+        cmd: sudo dnf module reset php -y
+      when: inventory_hostname in groups['web']
+    - name: enable remi7.2 on server-02
+      shell:
+        cmd: sudo dnf module enable php:remi-7.2 -y
+      when: inventory_hostname in groups['web']
+    - name: install php
+      shell:
+        cmd: sudo dnf install php php-mysqli php-curl php-mysqlnd -y
+      when: inventory_hostname in groups['web']
+    - name: Start php-fpm
+      shell:
+        cmd: systemctl start php-fpm
+      when: inventory_hostname in groups['web']
+    - name: enable php-fpm
+      shell:
+        cmd: systemctl enable php-fpm
+      when: inventory_hostname in groups['web']
+    - name: create myweb.com
+      shell:
+        cmd: sudo mkdir -p /var/www/myweb.com
+      when: inventory_hostname in groups['web']
+      #edit hosts file server-01
+    - name: edit /etc/hosts
+      shell:
+        cmd: sed -i '3 i\
+          192.168.100.80 www.myweb.com\' /etc/hosts
+      when: ansible_ssh_host == '192.168.100.80'
+    - name: edit /etc/hosts
+      shell:
+        cmd: sed -i '3 i\
+          192.168.100.81 server-02.myweb.com\' /etc/hosts
+      when: ansible_ssh_host == '192.168.100.80'
+    - name: edit /etc/hosts
+      shell:
+        cmd: sed -i '3 i\
+          192.168.100.82 server-03.myweb.com\' /etc/hosts
+      when: ansible_ssh_host == '192.168.100.80'
+    - name: restart httpd
+      service:
+        name: httpd
+        state: restarted
+      when: inventory_hostname in groups['web']
+    #-end web
+  #--end Vhost+loadbalance
+
+  #--nfs
+    #-server
+    - name: enable nfs
+      shell:
+        cmd: sudo systemctl enable --now nfs-server 
+      when: ansible_ssh_host == '192.168.100.70' #server-04
+    - name: make /srv/nfs4/www
+      shell:
+        cmd: sudo mkdir -p /srv/nfs4/www
+      when: ansible_ssh_host == '192.168.100.70'
+    - name: make /var/www
+      shell:
+        cmd: sudo mkdir -p /var/www
+      when: ansible_ssh_host == '192.168.100.70'
+    - name: edit exports
+      blockinfile:
+        path: /etc/exports
+        block: |
+          /srv/nfs4/www     192.168.100.0/24(rw,sync,no_subtree_check)
+      when: ansible_ssh_host == '192.168.100.70'
+    - name: mount www
+      shell:
+        cmd: sudo mount --bind /var/www /srv/nfs4/www
+      when: ansible_ssh_host == '192.168.100.70'
+    - name: reload exportfs
+      shell:
+        cmd: sudo exportfs -ra
+      when: ansible_ssh_host == '192.168.100.70'
+    #-end server
+    #-client
+    - name: make www
+      shell: 
+        cmd: sudo mkdir -p /srv/www
+      when: inventory_hostname in groups['web']
+    - name: mount www
+      shell: 
+        cmd: sudo mount -t nfs -o vers=4 192.168.100.70:/srv/nfs4/www /srv/www
+      when: inventory_hostname in groups['web']
+    - name: df -h
+      shell:
+        cmd: df -h
+      when: inventory_hostname in groups['web']
+    #-end client
+  #--end nfs
+
+  #--databases
+    #-server
+    - name: enable mariadb-server
+      shell:
+        cmd: sudo systemctl enable mariadb.service
+      when: ansible_ssh_host == '192.168.100.70'  #server04
+    - name: start mariadb
+      service:
+        name: mariadb
+        enabled: true
+        state: started
+      when: inventory_hostname in groups['nfs'] #server02,03,04
+    #-end server
+    #-client
+    - name: create index web
+      template:
+        src: template/...
+        dest: /var/www/myweb.com/index.php
+        owner: root
+        group: root
+        mode: "0755"
+      when: inventory_hostname in groups['web']
+    - name: start mariadb
+      shell:
+        cmd: sudo systemctl start mariadb
+      when: inventory_hostname in groups['nfs'] #server02,03,04
+    #-end client
+    - name: Create user
+      mysql_user:
+        name: "username"
+        password: "passwd"
+        host: "%"
+        priv: '*.*:ALL,GRANT'
+        state: present
+      when: ansible_ssh_host == '192.168.100.70'
+    - name: restart db
+      service:
+        name: mariadb
+        state: restarted
+      when: ansible_ssh_host == '192.168.100.70'
+    - name: copy database to tmp
+      template:
+        src: todo.sql # database name
+        dest: /tmp
+        owner: root
+        group: root
+        mode: "0755"
+        force: yes
+      when: ansible_ssh_host == '192.168.100.70'
+    - name: restore db
+      mysql_db: 
+        name: todo 
+        state: import
+        target: /tmp/todo.sql # location database
+      when: ansible_ssh_host == '192.168.100.70'
+    - name: restart db
+      service:
+        name: mariadb
+        state: restarted
+      when: ansible_ssh_host == '192.168.100.70'
+  #--end databases
+#---End Configulation
+
+#--- Config Firewalll
+  #--DNS
+    - name: Add servive dns
+      # firewalld:
+      #   service: dns
+      #   permanent: yes
+      #   state: enabled
+      shell:
+        cmd: sudo firewall-cmd --add-service=dns --permanent
+      when: ansible_connection == 'local' #server-mgn
+    - name: reload firewall
+      shell:
+        cmd: sudo firewall-cmd --reload
+      when: ansible_connection == 'local'
+    - name: start service dns
+      shell:
+        cmd: sudo systemctl start named
+      when: inventory_hostname in groups['dns'] #mgn,04
+    - name: enable service dns
+      shell:
+        cmd: sudo systemctl enable named
+      when: inventory_hostname in groups['dns'] #mgn,04
+  #--end DNS
+  #--Time server
+    - name: open firewall
+      firewalld:
+        service:  ntp
+        permanent: yes
+        state: enabled
+      when: ansible_connection == 'local'
+    - name: reload firewalld
+      service:
+        name: firewalld
+        state:  reloaded
+    - name: restart chronyd
+      service:
+        name: chronyd
+        state:  restarted
+    - name: set timezone
+      timezone:
+        name: Asia/Bangkok
+  #--end Time server
+  #--log server
+    - firewalld:
+        port: 514/tcp
+        permanent: yes
+        state: enabled
+    - firewalld:
+        port: 514/udp
+        permanent: yes
+        state: enabled
+    - name: reload firewall 
+      service:
+        name: firewalld
+        state: reloaded
+    - name: restart rsyslog
+      systemd:
+        name: rsyslog
+        state: restarted
+  #--end log server
+  #--nginx and aphache
+    - name: restart php-fpm
+      shell:
+        cmd: systemctl restart php-fpm
+      when: inventory_hostname in groups['web']
+    - firewalld:
+        service: https
+        permanent: yes
+        state: enabled
+      when: inventory_hostname in groups['web']
+    - name: Open port 80 {http} 
+      shell:
+        cmd: firewall-cmd --permanent --zone=public --add-service=http
+      when: inventory_hostname in groups['web']
+    - name: Open port 443 {http} 
+      shell:
+        cmd: firewall-cmd --permanent --zone=public --add-service=https
+      when: inventory_hostname in groups['web']
+    - name: reload firewall
+      shell:
+        cmd: firewall-cmd --reload
+      when: inventory_hostname in groups['web']
+    - name: restart nginx
+      shell:
+        cmd: sudo systemctl restart nginx
+      when: ansible_ssh_host == '192.168.100.80'
+    - name: restart httpd
+      service:
+        name: httpd
+        state: restarted
+      when: inventory_hostname in groups['web']
+  #--end nginx and aphache
+  #--nfs
+    - name: add new nfs firewall
+      shell:
+        cmd: sudo firewall-cmd --new-zone=nfs --permanent
+      when: ansible_ssh_host == '192.168.100.70'
+    - name: add service nfs firewall
+      shell:
+        cmd: sudo firewall-cmd --zone=nfs --add-service=nfs --permanent
+      when: ansible_ssh_host == '192.168.100.70'
+    - name: add source ip nfs firewall
+      shell:
+        cmd: sudo firewall-cmd --zone=nfs --add-source=192.168.100.0/24 --permanent
+      when: ansible_ssh_host == '192.168.100.70'
+    - name: reload firewall
+      shell:
+        cmd: sudo firewall-cmd --reload
+      when: ansible_ssh_host == '192.168.100.70'
+  #--end nfs
+  #--database
+    - name: open firewall mysql
+      shell:
+        cmd: sudo firewall-cmd --permanent --add-service=mysql
+      when: ansible_ssh_host == '192.168.100.70'
+    - name: reload firewall 
+      shell:
+        cmd: sudo firewall-cmd --reload
+      when: ansible_ssh_host == '192.168.100.70'
+  #--end database
+#--- Config Firewalll

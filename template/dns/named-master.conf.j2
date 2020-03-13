@@ -57,7 +57,7 @@ zone "." IN {
 include "/etc/named.rfc1912.zones";
 include "/etc/named.root.key";
 
-zone "myweb.com" IN {
+zone "myweb-100.com" IN {
 	type master;
 	file "192.168.100.forward";
 	allow-update { none; };

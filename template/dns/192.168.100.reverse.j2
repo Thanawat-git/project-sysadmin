@@ -1,16 +1,15 @@
 $TTL 86400
- @   IN  SOA     dns1.myweb.com. root.myweb.com. (
-         2020120301  ;Serial
-         3600        ;Refresh
-         1800        ;Retry
-         604800      ;Expire
-         86400       ;Minimum TTL
- )
-         # Set Name Server
-         IN  NS      dns1.myweb.com.
-         IN  NS      dns2.myweb.com.
-         IN  NS      web1.myweb.com.
-## Set each IP address of a hostname. Sample PTR records.
-11      IN  PTR     dns1.myweb.com.
-70      IN  PTR     dns2.myweb.com.
-80      IN  PTR     web1.myweb.com.
+@   IN  SOA     dns1.myweb-100.com. root.myweb-100.com. (
+        2020120301  ;Serial
+        3600        ;Refresh
+        1800        ;Retry
+        604800      ;Expire
+        86400       ;Minimum TTL
+)
+        IN  NS      dns1.myweb-100.com.
+        IN  NS      dns2.myweb-100.com.
+        IN  NS      web1.myweb-100.com.
+
+11      IN  PTR     dns1.myweb-100.com.
+70      IN  PTR     dns2.myweb-100.com.
+80      IN  PTR     web1.myweb-100.com.

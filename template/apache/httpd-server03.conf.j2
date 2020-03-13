@@ -358,10 +358,10 @@ IncludeOptional conf.d/*.conf
 
 
 <VirtualHost *:80>
-    ServerName server-03.myweb.com
-    ServerAlias www.server-03.myweb.com
-    DocumentRoot /var/www/myweb.com
-    ErrorLog logs/server-03.myweb.com-error_log
-    CustomLog logs/server-03.myweb.com-access_log common
+    ServerName server-03.myweb-100.com
+    ServerAlias www.server-03.myweb-100.com
+    DocumentRoot /var/www/myweb-100.com
+    ErrorLog logs/server-03.myweb-100.com-error_log
+    CustomLog logs/server-03.myweb-100.com-access_log common
     CustomLog "| /bin/sh -c '/usr/bin/tee -a /var/log/httpd/httpd-access.log | /usr/bin/logger -thttpd -plocal6.info'" combined 
 </VirtualHost>

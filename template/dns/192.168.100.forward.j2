@@ -1,19 +1,16 @@
 $TTL 86400
- @   IN  SOA     dns1.myweb.com. root.myweb.com. (
- # You can use any numerical values for serial number but it is recommended to use [YYYYMMDDnn]
-         2020120301  ;Serial
-         3600        ;Refresh
-         1800        ;Retry
-         604800      ;Expire
-         86400       ;Minimum TTL
+@   IN  SOA     dns1.myweb-100.com. root.myweb-100.com. (
+        2020120301  ;Serial
+        3600        ;Refresh
+        1800        ;Retry
+        604800      ;Expire
+        86400       ;Minimum TTL
 )
-         # Set your Name Servers here
-         IN  NS      dns1.myweb.com.
-         IN  NS      dns2.myweb.com.
-         # define Name Server's IP address
-         IN  A       192.168.100.11
-         # Set your Mail Exchanger (MX) Server here
-         IN  MX 10   dns1.myweb.com.
+        IN  NS      dns1.myweb-100.com.
+        IN  NS      dns2.myweb-100.com.
+        
+        IN  A       192.168.100.11
+        IN  MX 10   dns1.myweb-100.com.
 
 dns1     IN  A       192.168.100.11
 dns2     IN  A       192.168.100.70

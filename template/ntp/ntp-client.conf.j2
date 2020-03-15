@@ -1,6 +1,6 @@
 # Use public servers from the pool.ntp.org project.
 # Please consider joining the pool (http://www.pool.ntp.org/join.html).
-server 192.168.143.11
+server 192.168.100.11
 
 # Record the rate at which the system clock gains/losses time.
 driftfile /var/lib/chrony/drift
@@ -20,7 +20,7 @@ rtcsync
 #minsources 2
 
 # Allow NTP client access from local network.
-#allow 192.168.143.0/16
+#allow 192.168.100.0/16
 
 # Serve time even if not synchronized to a time source.
 #local stratum 10

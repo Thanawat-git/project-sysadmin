@@ -78,5 +78,5 @@ local7.*                                                /var/log/boot.log
 # remote_host is: name/ip, e.g. 192.168.0.1, port optional e.g. 10514
 CustomLog "| /bin/sh -c '/usr/bin/tee -a /var/log/httpd/httpd-access.log | /usr/bin/logger -thttpd -plocal6.info'" combined
 #Target="remote_host" Port="XXX" Protocol="tcp") 
-action(type="omfwd" Target="192.168.143.11" Port="514" Protocol="udp")
-action(type="omfwd" Target="192.168.143.11" Port="514" Protocol="tcp")
+action(type="omfwd" Target="192.168.100.11" Port="514" Protocol="udp")
+action(type="omfwd" Target="192.168.100.11" Port="514" Protocol="tcp")

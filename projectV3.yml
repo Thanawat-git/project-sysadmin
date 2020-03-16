@@ -388,6 +388,7 @@
       loop:
         - { source: 'products.php.j2', destination: '/srv/nfs4/www/products.php' }
         - { source: 'customers.php.j2', destination: '/srv/nfs4/www/customers.php' }
+        - { source: 'thailand.php', destination: '/srv/nfs4/www/thailand.php' }
       when: ansible_ssh_host == '192.168.100.70'
     - name: start mariadb
       shell:
@@ -409,7 +410,7 @@
       when: ansible_ssh_host == '192.168.100.70'
     - name: copy database to tmp
       template:
-        src: mysqlsampledatabase.sql # database name
+        src: thailand-provinces/provinces.sql # database name
         dest: /tmp
         owner: root
         group: root
@@ -418,9 +419,9 @@
       when: ansible_ssh_host == '192.168.100.70'
     - name: restore db
       mysql_db: 
-        name: classicmodels 
+        name: provinces
         state: import
-        target: /tmp/mysqlsampledatabase.sql # location database
+        target: /tmp/provinces.sql # location database
       when: ansible_ssh_host == '192.168.100.70'
     - name: restart db
       service:

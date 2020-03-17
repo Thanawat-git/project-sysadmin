@@ -1,0 +1,113 @@
+---
+- hosts: all
+  become: yes
+  become_user: root
+  tasks:
+
+#--- Installation
+    - name: Install firewall
+      yum:
+        name: firewalld
+        state: latest
+    - name: Start firewalld
+      service: 
+        name: firewalld 
+        state: started
+    - name: Install Dns {bind, bind-utils}
+      shell:
+        cmd: sudo yum install bind bind-utils -y
+      # package:
+      #   name: 
+      #     - bind
+      #     - bind-utils
+      #   state: latest
+      when: inventory_hostname in groups['dns'] #mgn,04
+    # - name: Install rsyslog and time-server{chrony}
+    #   package: 
+    #     name: 
+    #       - rsyslog
+    #       - chrony
+    #     state: latest
+    # - name: Install nginx
+    #   yum:
+    #     name: nginx
+    #     state: latest
+    #   when: ansible_ssh_host == '192.168.100.80' #server-01
+    # - name: Install apache{httpd}
+    #   yum:
+    #     name: httpd
+    #     state: latest
+    #   when: inventory_hostname in groups['web'] #server-02,03
+    # - name: Install nfs
+    #   yum:
+    #     name: nfs-utils
+    #     state: latest
+    #   when: inventory_hostname in groups['nfs'] #02,03,04
+    # - name: Install mariadb on server-02,03
+    #   shell:
+    #     cmd: sudo yum -y install @mariadb
+    #   when: inventory_hostname in groups['web']
+    # - name: install mariadb-server on server-04
+    #   shell:
+    #     cmd: sudo yum install mariadb-server -y
+    #   when: ansible_ssh_host == '192.168.100.70' #server-04
+#--- Installation
+
+#--- Configulation
+  #--DNS
+    #-Master
+    - name: Config All dns file {copy template} Master
+      template:
+        src: "{{ item.source }}"
+        dest: "{{ item.destination }}"
+        owner: root
+        group: root
+        mode: "0755"
+      loop:
+        - { source: 'template/dns/named-master.conf.j2', destination: '/etc/named.conf' }
+        - { source: 'template/dns/192.168.100.forward.j2', destination: '/var/named/192.168.100.forward' }
+        - { source: 'template/dns/192.168.100.reverse.j2', destination: '/var/named/192.168.100.reverse' }
+        - { source: 'template/dns/resolv-master.conf.j2', destination: '/etc/resolv.conf' }
+      when: ansible_connection == 'local' #mgn
+    #-Master
+    - name: Config All dns file {copy template} Slave
+      template:
+        src: "{{ item.source }}"
+        dest: "{{ item.destination }}"
+        owner: root
+        group: root
+        mode: "0755"
+      loop:
+        - { source: 'template/dns/named-slave.conf.j2', destination: '/etc/named.conf' }
+        - { source: 'template/dns/resolv-slave.conf.j2', destination: '/etc/resolv.conf' }
+      when: ansible_ssh_host == '192.168.100.70' #server-04
+    #-Slave
+
+    #-Slave
+  #DNS
+#--- Configulation
+
+#--- Config Firewalll
+  #--DNS
+    - name: Add servive dns
+      # firewalld:
+      #   service: dns
+      #   permanent: yes
+      #   state: enabled
+      shell:
+        cmd: sudo firewall-cmd --add-service=dns --permanent
+      when: ansible_connection == 'local' #server-mgn
+    - name: reload firewall
+      shell:
+        cmd: sudo firewall-cmd --reload
+      when: ansible_connection == 'local'
+    - name: start and enable service
+      shell:
+        cmd: sudo systemctl start named
+      when: inventory_hostname in groups['dns'] #mgn,04
+    - name: start and enable service
+      shell:
+        cmd: sudo systemctl enable named
+      when: inventory_hostname in groups['dns'] #mgn,04
+  #--DNS
+#--- Config Firewalll

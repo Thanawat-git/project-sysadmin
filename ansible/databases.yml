@@ -1,0 +1,13 @@
+---
+- hosts: all
+  become: yes
+  become_user: root
+  tasks:
+    - name: disable
+      shell:
+        cmd: sudo mount -t vboxsf vagrant /vagrant
+      when: inventory_hostname in groups['myserver']
+    
+    # - name: reboot
+    #   reboot:
+    #   when: inventory_hostname in groups['myserver']
